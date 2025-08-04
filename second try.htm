@@ -1,0 +1,214 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>የኡበይ መድረሳ የቁርዓን ፈተና ማርክ መያዣ</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f9;
+      margin: 0;
+      padding: 10px;
+    }
+    h1, h2 {
+      color: #2c3e50;
+      font-size: 20px;
+    }
+    .container {
+      max-width: 100%;
+      margin: auto;
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.1);
+    }
+    input[type="text"], input[type="number"] {
+      padding: 8px;
+      margin: 5px 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 10px;
+      margin: 5px 5px 5px 0;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    .mistake-buttons button {
+      background-color: #e67e22;
+      width: 100%;
+      margin-bottom: 5px;
+    }
+    table {
+      width: 100%;
+      margin-top: 10px;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    .mistake-entry {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .flex-row {
+      display: flex;
+      flex-direction: column;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>የኡበይ መድረሳ የቁርዓን ፈተና ማርክ መያዣ</h1><div class="flex-row">
+  <label> የተማሪ ስም:</label>
+  <input type="text" id="studentName" placeholder="Enter name" />
+</div>
+
+<div class="flex-row">
+  <label> አጠቃላይ (ሙሉ) ውጤት ( ከ 20 ወይም 30):</label>
+  <input type="number" id="maxScore" placeholder="Enter total score" value="30" />
+</div>
+
+<h2> የስህተት አይነቶች</h2>
+<div id="mistakeList"></div>
+<button onclick="addMistakeType()">+ Add Mistake Type</button>
+<button onclick="lockMistakeTypes()">Done</button>
+<button onclick="editMistakeTypes()" id="editBtn" style="display:none">Edit Mistake Types</button>
+
+<h2> ውጤት</h2>
+<div class="mistake-buttons" id="mistakeButtons"></div>
+<p><strong>Total ተቀናሽ:</strong> <span id="totalDeduction">0</span></p>
+<p><strong> ውጤት:</strong> <span id="finalScore">30</span></p>
+
+<button onclick="submitScore()"> ውጤት አስገባ</button>
+<button onclick="newSession()"> አዲስ ውጤት መያዣ</button>
+
+<h2> የውጤት ሰንጠረዥ</h2>
+<table>
+  <thead>
+    <tr><th>Name</th><th>Score</th></tr>
+  </thead>
+  <tbody id="scoreLog"></tbody>
+</table>
+
+  </div>  <script>
+    let mistakes = [];
+    let scores = JSON.parse(localStorage.getItem('scores')) || [];
+    let totalDeduction = 0;
+    let maxScore = 30;
+
+    window.onload = () => {
+      renderScoreLog();
+      updateScore();
+    }
+
+    function addMistakeType() {
+      const id = Date.now();
+      const div = document.createElement("div");
+      div.className = 'mistake-entry';
+      div.innerHTML = `
+        <input type="text" placeholder="Mistake Name" id="name-${id}" />
+        <input type="number" placeholder="Point Deduction" step="0.1" id="value-${id}" />
+        <button onclick="this.parentElement.remove()">Remove</button>
+      `;
+      document.getElementById("mistakeList").appendChild(div);
+    }
+
+    function lockMistakeTypes() {
+      mistakes = [];
+      document.getElementById("mistakeButtons").innerHTML = "";
+      const entries = document.querySelectorAll(".mistake-entry");
+      entries.forEach(entry => {
+        const name = entry.querySelector("input[type='text']").value;
+        const value = parseFloat(entry.querySelector("input[type='number']").value);
+        if (name && !isNaN(value)) {
+          mistakes.push({ name, value, count: 0 });
+        }
+      });
+      document.getElementById("mistakeList").style.display = "none";
+      document.getElementById("editBtn").style.display = "inline-block";
+      renderMistakeButtons();
+    }
+
+    function editMistakeTypes() {
+      document.getElementById("mistakeList").style.display = "block";
+      document.getElementById("editBtn").style.display = "none";
+    }
+
+    function renderMistakeButtons() {
+      const container = document.getElementById("mistakeButtons");
+      container.innerHTML = "";
+      mistakes.forEach((mistake, index) => {
+        const btn = document.createElement("button");
+        btn.textContent = `${mistake.name} (0)`;
+        btn.onclick = () => {
+          mistakes[index].count++;
+          totalDeduction += mistakes[index].value;
+          updateScore();
+          btn.textContent = `${mistakes[index].name} (${mistakes[index].count})`;
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function updateScore() {
+      maxScore = parseFloat(document.getElementById("maxScore").value) || 30;
+      document.getElementById("totalDeduction").textContent = totalDeduction.toFixed(2);
+      document.getElementById("finalScore").textContent = (maxScore - totalDeduction).toFixed(2);
+    }
+
+    function submitScore() {
+      const name = document.getElementById("studentName").value.trim();
+      const score = (maxScore - totalDeduction).toFixed(2);
+      if (!name) return alert("Enter student name");
+
+      scores.push({ name, score });
+      localStorage.setItem('scores', JSON.stringify(scores));
+      renderScoreLog();
+
+      // Reset for next student
+      document.getElementById("studentName").value = "";
+      mistakes.forEach(m => m.count = 0);
+      totalDeduction = 0;
+      updateScore();
+      renderMistakeButtons();
+    }
+
+    function renderScoreLog() {
+      const tbody = document.getElementById("scoreLog");
+      tbody.innerHTML = "";
+      scores.forEach(({ name, score }) => {
+        const row = `<tr><td>${name}</td><td>${score}</td></tr>`;
+        tbody.innerHTML += row;
+      });
+    }
+
+    function newSession() {
+      if (confirm("Start a new session? All scores will be lost.")) {
+        localStorage.removeItem('scores');
+        scores = [];
+        renderScoreLog();
+        document.getElementById("studentName").value = "";
+        totalDeduction = 0;
+        updateScore();
+        mistakes = [];
+        document.getElementById("mistakeList").innerHTML = "";
+        document.getElementById("mistakeButtons").innerHTML = "";
+        document.getElementById("mistakeList").style.display = "block";
+        document.getElementById("editBtn").style.display = "none";
+      }
+    }
+  </script></body>
+</html>
